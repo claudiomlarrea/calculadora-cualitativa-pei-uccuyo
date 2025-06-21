@@ -1,3 +1,5 @@
+# app.py
+
 import streamlit as st
 import pandas as pd
 import openai
@@ -5,17 +7,22 @@ import os
 from io import BytesIO
 from docx import Document
 
+# ✅ Configuración de la página
 st.set_page_config(page_title="Calculadora Cualitativa PEI UCCuyo", page_icon="🧠", layout="wide")
 st.title("🧠 Calculadora Cualitativa PEI UCCuyo")
 
+# 🔐 Clave API de OpenAI
 openai.api_key = st.secrets["openai"]["api_key"] if "openai" in st.secrets else os.getenv("OPENAI_API_KEY")
 
+# 📤 Subida de archivo
 uploaded_file = st.file_uploader("📤 Sube tu archivo Excel con actividades PEI", type=["xlsx"])
+
 if uploaded_file:
     df = pd.read_excel(uploaded_file)
     st.subheader("📑 Vista previa de los datos")
     st.dataframe(df)
 
+    # 🧠 Selección de columnas de texto libre
     st.subheader("🧠 Selecciona columnas con texto libre para análisis cualitativo")
     texto_cols = st.multiselect("Selecciona una o más columnas", df.columns.tolist())
 
@@ -24,15 +31,17 @@ if uploaded_file:
 
         st.subheader("🤖 Generando análisis temático y de discurso con ChatGPT")
         resultados = []
+
         for i, texto in enumerate(col_joined):
-            prompt = f"Analiza el siguiente texto con un enfoque cualitativo:
+            prompt = f"""Analiza el siguiente texto con un enfoque cualitativo:
 
 {texto}
 
 Devuelve:
 1. Análisis temático.
 2. Análisis del discurso.
-3. Conclusión cualitativa."
+3. Conclusión cualitativa."""
+
             try:
                 response = openai.ChatCompletion.create(
                     model="gpt-4",
@@ -45,9 +54,11 @@ Devuelve:
                 resultado = f"❌ Error: {str(e)}"
             resultados.append(resultado)
 
+        # Mostrar resultados
         df["Análisis Cualitativo"] = resultados
         st.dataframe(df[["Análisis Cualitativo"]])
 
+        # Exportar a Word
         def export_to_word(resultados):
             doc = Document()
             doc.add_heading("Análisis Cualitativo PEI", 0)
