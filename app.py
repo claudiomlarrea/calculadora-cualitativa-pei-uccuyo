@@ -7,14 +7,14 @@ import os
 from io import BytesIO
 from docx import Document
 
-# ✅ Configuración de la página
+# ✅ Clave API de OpenAI desde archivo de secretos
+openai.api_key = st.secrets["openai"]["api_key"]
+
+# Configuración general de la app
 st.set_page_config(page_title="Calculadora Cualitativa PEI UCCuyo", page_icon="🧠", layout="wide")
 st.title("🧠 Calculadora Cualitativa PEI UCCuyo")
 
-# 🔐 Clave API de OpenAI
-openai.api_key = st.secrets["openai"]["api_key"] if "openai" in st.secrets else os.getenv("OPENAI_API_KEY")
-
-# 📤 Subida de archivo
+# Subida del archivo Excel
 uploaded_file = st.file_uploader("📤 Sube tu archivo Excel con actividades PEI", type=["xlsx"])
 
 if uploaded_file:
@@ -22,7 +22,7 @@ if uploaded_file:
     st.subheader("📑 Vista previa de los datos")
     st.dataframe(df)
 
-    # 🧠 Selección de columnas de texto libre
+    # Selección de columnas para análisis cualitativo
     st.subheader("🧠 Selecciona columnas con texto libre para análisis cualitativo")
     texto_cols = st.multiselect("Selecciona una o más columnas", df.columns.tolist())
 
@@ -58,7 +58,7 @@ Devuelve:
         df["Análisis Cualitativo"] = resultados
         st.dataframe(df[["Análisis Cualitativo"]])
 
-        # Exportar a Word
+        # Función para exportar a Word
         def export_to_word(resultados):
             doc = Document()
             doc.add_heading("Análisis Cualitativo PEI", 0)
@@ -69,9 +69,12 @@ Devuelve:
             doc.save(export_path)
             return export_path
 
-        docx_file = export_to_word(resultados)
-        with open(docx_file, "rb") as f:
-            st.download_button("📥 Descargar Análisis en Word", f, file_name="analisis_cualitativo_pei.docx")
-
+        # Solo descargar si hay resultados válidos
+        if any("❌ Error" not in r for r in resultados):
+            docx_file = export_to_word(resultados)
+            with open(docx_file, "rb") as f:
+                st.download_button("📥 Descargar Análisis en Word", f, file_name="analisis_cualitativo_pei.docx")
+        else:
+            st.warning("⚠️ No se pudo generar ningún análisis válido para exportar.")
 else:
     st.info("👆 Por favor sube un archivo Excel para comenzar.")
