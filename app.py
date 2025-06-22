@@ -3,7 +3,7 @@ import pandas as pd
 import openai
 
 # Configurar manualmente la clave API (NO RECOMENDADO para producción)
-openai.api_key = ""
+openai.api_key = "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"
 
 # Configuración general
 st.set_page_config(page_title="Calculadora Cualitativa PEI UCCuyo", layout="wide")
