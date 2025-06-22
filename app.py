@@ -1,76 +1,71 @@
 import streamlit as st
 import pandas as pd
-from openai import OpenAI
-from docx import Document
-from io import BytesIO
+import openai
+import os
 
-# Configurar título
+# Cargar clave API desde los secretos
+openai.api_key = st.secrets["openai"]["api_key"]
+
+# Configuración inicial de la interfaz
 st.set_page_config(page_title="Calculadora Cualitativa PEI UCCuyo", layout="wide")
 st.title("🧠 Calculadora Cualitativa PEI UCCuyo")
-st.caption("Sube tu archivo Excel con actividades PEI")
+st.markdown("Sube tu archivo Excel con actividades del PEI")
 
 # Subida del archivo
-uploaded_file = st.file_uploader("📂 Sube archivo .xlsx", type=["xlsx"])
-if not uploaded_file:
-    st.info("📌 Por favor sube un archivo Excel para comenzar.")
-    st.stop()
+uploaded_file = st.file_uploader("📂 Cargar archivo Excel", type=["xlsx"])
 
-# Cargar archivo
-df = pd.read_excel(uploaded_file)
+if uploaded_file:
+    df = pd.read_excel(uploaded_file)
+    st.success("Archivo cargado correctamente ✅")
 
-# Detectar columnas objetivo
-target_columns = [col for col in df.columns if "Actividades Objetivo" in col]
+    st.subheader("📊 Vista previa de los datos")
+    st.dataframe(df.head())
 
-# Vista previa
-st.subheader("📊 Vista previa de los datos")
-st.dataframe(df[target_columns].head(10))
+    columnas_objetivo = [
+        "Actividades Objetivo 1",
+        "Actividades Objetivo 2",
+        "Actividades Objetivo 3",
+        "Actividades Objetivo 4",
+        "Actividades Objetivo 5",
+        "Actividades Objetivo 6",
+    ]
 
-# Botón para ejecutar análisis global
-if st.button("🔍 Realizar análisis cualitativo global de las actividades"):
-    with st.spinner("Generando análisis con GPT..."):
+    # Extraer los textos no vacíos de las columnas objetivo
+    textos = []
+    for col in columnas_objetivo:
+        if col in df.columns:
+            textos += df[col].dropna().astype(str).tolist()
 
-        # Reunir textos
-        all_texts = []
-        for col in target_columns:
-            texts = df[col].dropna().astype(str).tolist()
-            all_texts.extend(texts)
+    textos_filtrados = [t.strip() for t in textos if t.strip() and t.strip() != "-"]
 
-        concatenated_text = "\n\n".join(all_texts)
+    if textos_filtrados:
+        if st.button("🔍 Realizar análisis cualitativo global de las actividades"):
+            with st.spinner("Analizando con ChatGPT..."):
+                prompt = (
+                    "Realiza un análisis temático y del discurso de los siguientes textos "
+                    "extraídos del Plan Estratégico Institucional de una universidad. "
+                    "Identifica temas emergentes, patrones discursivos, preocupaciones y objetivos institucionales relevantes. "
+                    "Los textos son:\n\n" + "\n- ".join(textos_filtrados)
+                )
 
-        # Enviar a OpenAI
-        client = OpenAI()
-        prompt = f"""Analiza cualitativamente las siguientes actividades institucionales del PEI. Realiza:
-1. Un análisis temático general.
-2. Un análisis del discurso relevante.
-3. Conclusiones cualitativas principales.
-
-Texto base:
-{concatenated_text}
-"""
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        analysis = response.choices[0].message.content
-
-        # Mostrar en pantalla
-        st.success("✅ Análisis generado correctamente:")
-        st.markdown("### 🧾 Resultado del análisis global")
-        st.markdown(analysis)
-
-        # Guardar en Word
-        doc = Document()
-        doc.add_heading("Análisis Cualitativo Global de Actividades PEI", level=1)
-        doc.add_paragraph(analysis)
-
-        buffer = BytesIO()
-        doc.save(buffer)
-        buffer.seek(0)
-
-        # Botón de descarga
-        st.download_button(
-            label="📥 Descargar análisis en Word",
-            data=buffer,
-            file_name="analisis_global_actividades_pei.docx",
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        )
+                try:
+                    response = openai.chat.completions.create(
+                        model="gpt-4",
+                        messages=[
+                            {
+                                "role": "user",
+                                "content": prompt
+                            }
+                        ],
+                        temperature=0.3
+                    )
+                    resultado = response.choices[0].message.content
+                    st.success("✅ Análisis generado correctamente.")
+                    st.subheader("📄 Resultado")
+                    st.write(resultado)
+                except Exception as e:
+                    st.error(f"❌ Error al comunicarse con la API de OpenAI:\n\n{e}")
+    else:
+        st.warning("⚠️ No se encontraron textos válidos en las columnas seleccionadas.")
+else:
+    st.info("📥 Por favor, sube un archivo Excel para comenzar.")
