@@ -3,3 +3,4 @@ pandas
 openai
 python-docx
 openpyxl
+openai>=1.0.0
