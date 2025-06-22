@@ -6,12 +6,29 @@ from openai import OpenAI
 from io import BytesIO
 from docx import Document
 
-# Crear cliente OpenAI con nueva API
+# ✅ Crear cliente OpenAI
 client = OpenAI(api_key=st.secrets["openai"]["api_key"])
 
-st.set_page_config(page_title="Calculadora Cualitativa PEI UCCuyo", page_icon="🧠", layout="wide")
-st.title("🧠 Calculadora Cualitativa PEI UCCuyo")
+# 🖼️ Logo y encabezado institucional
+st.set_page_config(page_title="Calculadora Cualitativa PEI UCCuyo", page_icon="🎓", layout="wide")
 
+st.markdown("""
+<style>
+header {visibility: hidden;}
+footer {visibility: hidden;}
+.css-18e3th9 {padding-top: 1rem;}
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+# 🎓 Calculadora Cualitativa PEI UCCuyo
+**Universidad Católica de Cuyo**  
+Secretaría de Investigación – Evaluación institucional cualitativa del PEI  
+""")
+
+st.markdown("---")
+
+# 📤 Subida del archivo
 uploaded_file = st.file_uploader("📤 Sube tu archivo Excel con actividades PEI", type=["xlsx"])
 
 if uploaded_file:
@@ -19,13 +36,14 @@ if uploaded_file:
     st.subheader("📑 Vista previa de los datos")
     st.dataframe(df)
 
+    # Selección de columnas
     st.subheader("🧠 Selecciona columnas con texto libre para análisis cualitativo")
     texto_cols = st.multiselect("Selecciona una o más columnas", df.columns.tolist())
 
     if texto_cols:
         col_joined = df[texto_cols].astype(str).agg(" ".join, axis=1)
 
-        st.subheader("🤖 Generando análisis temático y de discurso con ChatGPT")
+        st.subheader("🤖 Análisis temático y de discurso por actividad")
         resultados = []
 
         for i, texto in enumerate(col_joined):
@@ -53,6 +71,7 @@ Devuelve:
         df["Análisis Cualitativo"] = resultados
         st.dataframe(df[["Análisis Cualitativo"]])
 
+        # Exportación a Word
         def export_to_word(resultados):
             doc = Document()
             doc.add_heading("Análisis Cualitativo PEI", 0)
@@ -70,9 +89,11 @@ Devuelve:
         else:
             st.warning("⚠️ No se pudo generar ningún análisis válido para exportar.")
 
-        # 🧠 Análisis global
+        # 🧠 Análisis global del conjunto
         st.subheader("🧠 Análisis Global del Conjunto de Actividades")
+
         texto_global = "\n".join(col_joined)
+
         prompt_global = f"""Analiza el siguiente conjunto de textos con un enfoque cualitativo integral:
 
 {texto_global}
