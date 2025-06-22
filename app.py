@@ -1,94 +1,76 @@
-# app.py
-
 import streamlit as st
 import pandas as pd
 from openai import OpenAI
-from io import BytesIO
 from docx import Document
+from io import BytesIO
 
-# Crear cliente OpenAI
-client = OpenAI(api_key=st.secrets["openai"]["api_key"])
+# Configurar título
+st.set_page_config(page_title="Calculadora Cualitativa PEI UCCuyo", layout="wide")
+st.title("🧠 Calculadora Cualitativa PEI UCCuyo")
+st.caption("Sube tu archivo Excel con actividades PEI")
 
-# Configuración general
-st.set_page_config(page_title="Calculadora Cualitativa PEI UCCuyo", page_icon="🎓", layout="wide")
-st.title("🎓 Calculadora Cualitativa PEI UCCuyo")
+# Subida del archivo
+uploaded_file = st.file_uploader("📂 Sube archivo .xlsx", type=["xlsx"])
+if not uploaded_file:
+    st.info("📌 Por favor sube un archivo Excel para comenzar.")
+    st.stop()
 
-# Subida de archivo
-uploaded_file = st.file_uploader("📤 Sube tu archivo Excel con actividades PEI", type=["xlsx"])
+# Cargar archivo
+df = pd.read_excel(uploaded_file)
 
-if uploaded_file:
-    df = pd.read_excel(uploaded_file)
-    st.subheader("📑 Vista previa de los datos")
-    st.dataframe(df)
+# Detectar columnas objetivo
+target_columns = [col for col in df.columns if "Actividades Objetivo" in col]
 
-    # Detectar columnas de actividades objetivo
-    texto_cols = [col for col in df.columns if "actividades objetivo" in col.lower()]
-    st.subheader("🔎 Columnas detectadas automáticamente")
-    st.write(texto_cols)
+# Vista previa
+st.subheader("📊 Vista previa de los datos")
+st.dataframe(df[target_columns].head(10))
 
-    actividades = []
+# Botón para ejecutar análisis global
+if st.button("🔍 Realizar análisis cualitativo global de las actividades"):
+    with st.spinner("Generando análisis con GPT..."):
 
-    for col in texto_cols:
-        for idx, texto in enumerate(df[col]):
-            if pd.notna(texto) and str(texto).strip() not in ["", "-", "None"]:
-                actividades.append({
-                    "Índice": idx + 2,  # para que coincida con la fila de Excel
-                    "Columna": col,
-                    "Texto": str(texto).strip()
-                })
+        # Reunir textos
+        all_texts = []
+        for col in target_columns:
+            texts = df[col].dropna().astype(str).tolist()
+            all_texts.extend(texts)
 
-    if actividades:
-        st.subheader("🤖 Análisis temático por actividad individual")
-        resultados = []
+        concatenated_text = "\n\n".join(all_texts)
 
-        for act in actividades:
-            prompt = (
-                "Analiza esta actividad institucional desde un enfoque cualitativo:\n\n"
-                f"{act['Texto']}\n\n"
-                "Devuelve:\n"
-                "1. Análisis temático.\n"
-                "2. Análisis del discurso.\n"
-                "3. Conclusión cualitativa."
-            )
+        # Enviar a OpenAI
+        client = OpenAI()
+        prompt = f"""Analiza cualitativamente las siguientes actividades institucionales del PEI. Realiza:
+1. Un análisis temático general.
+2. Un análisis del discurso relevante.
+3. Conclusiones cualitativas principales.
 
-            try:
-                response = client.chat.completions.create(
-                    model="gpt-4",
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0.7,
-                    max_tokens=700
-                )
-                resultado = response.choices[0].message.content
-            except Exception as e:
-                resultado = f"❌ Error: {str(e)}"
+Texto base:
+{concatenated_text}
+"""
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        analysis = response.choices[0].message.content
 
-            resultados.append({
-                "Fila Excel": act["Índice"],
-                "Columna": act["Columna"],
-                "Actividad": act["Texto"],
-                "Análisis": resultado
-            })
+        # Mostrar en pantalla
+        st.success("✅ Análisis generado correctamente:")
+        st.markdown("### 🧾 Resultado del análisis global")
+        st.markdown(analysis)
 
-        df_resultado = pd.DataFrame(resultados)
-        st.dataframe(df_resultado)
+        # Guardar en Word
+        doc = Document()
+        doc.add_heading("Análisis Cualitativo Global de Actividades PEI", level=1)
+        doc.add_paragraph(analysis)
 
-        # Exportar a Word
-        def export_to_word(resultados):
-            doc = Document()
-            doc.add_heading("Análisis Cualitativo PEI por Actividad Individual", 0)
-            for r in resultados:
-                doc.add_heading(f"Fila {r['Fila Excel']} – {r['Columna']}", level=2)
-                doc.add_paragraph(f"Actividad: {r['Actividad']}")
-                doc.add_heading("Análisis", level=3)
-                doc.add_paragraph(r["Análisis"])
-            output_path = "/mnt/data/analisis_actividades_PEIs.docx"
-            doc.save(output_path)
-            return output_path
+        buffer = BytesIO()
+        doc.save(buffer)
+        buffer.seek(0)
 
-        docx_file = export_to_word(resultados)
-        with open(docx_file, "rb") as f:
-            st.download_button("📥 Descargar informe en Word", f, file_name="analisis_actividades_PEIs.docx")
-    else:
-        st.warning("⚠️ No se encontraron actividades válidas en las columnas objetivo.")
-else:
-    st.info("👆 Por favor sube un archivo Excel para comenzar.")
+        # Botón de descarga
+        st.download_button(
+            label="📥 Descargar análisis en Word",
+            data=buffer,
+            file_name="analisis_global_actividades_pei.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
